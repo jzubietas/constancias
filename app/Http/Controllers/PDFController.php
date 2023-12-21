@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\User;
 use Barryvdh\DomPDF\PDF;
+use Carbon\Carbon;
 use Illuminate\Support\Facades\Config;
 use Exception;
 use Illuminate\Http\Request;
@@ -39,17 +40,42 @@ class PDFController extends Controller
 
             // Obtén todos los datos de la tabla
             //$datos = User::all();
-            $datos = DB::table('users')->select(["id","name","email"])->get();//->limit(5)
+            $datos = DB::table('constancias')->select([
+                "ejercicio","orden_servicio","exp_siaf","fecha","ruc","proveedor",
+                "descrip_siga","descrip_siaf","monto","fecha_fin","especifica_gasto"
+            ])->limit(20)->get();//
             //$users = User::where('status', 'active')->take(10)->get();
+
+            $groupedData = [];
+            foreach ($datos as $row) {
+                //dd($row->ruc);
+                $ruc = $row->ruc;
+
+                if (!isset($groupedData[$ruc])) {
+                    $groupedData[$ruc] = [];
+                }
+
+                $groupedData[$ruc][] = [
+                    'proveedor' => $row->proveedor,
+                    'data' => $row,
+                ];
+            }
+
+            //dd($groupedData);
+
+            // Output the grouped data
 
             $pdf = new TCPDF();
             $pdf->setPrintHeader(false);
             $pdf->setPrintFooter(false);
 
-            foreach ($datos as $dato) {
+            $fechaActual = Carbon::now()->locale('es_ES')->isoFormat('LL');
+            foreach ($groupedData as $ruc => $rows) {
                 $pdf->AddPage();
-                $htmlContent = view('pdf.templates', ['dato' => $dato])->render();
+
+                $htmlContent = view('pdf.templates', ['rows' => $rows, 'ruc' => $ruc, 'fechaActual' => $fechaActual])->render();
                 $pdf->writeHTML($htmlContent, true, false, true, false, '');
+                //$this->setFooter($pdf);
             }
 
             $pdfContent = $pdf->Output('S');
@@ -64,6 +90,14 @@ class PDFController extends Controller
         } finally {
             Config::set('database.default', env('DB_CONNECTION'));
         }
+    }
+
+    private function setFooter($pdf)
+    {
+        // Establecer el pie de página al final de la página
+        $pdf->SetY(-15);
+        $pdf->SetFont('helvetica', 'I', 8);
+        $pdf->Cell(0, 10, 'Tu Contenido de Pie de Página Aquí', 0, false, 'C', 0, '', 0, false, 'T', 'M');
     }
 
 }
